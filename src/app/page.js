@@ -1,95 +1,92 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client'
+import {useEffect, useRef, useState} from "react";
+import axios from "axios";
 
 export default function Home() {
-  return (
-    <main className={styles.main}>
-      <div className={styles.description}>
-        <p>
-          Get started by editing&nbsp;
-          <code className={styles.code}>src/app/page.js</code>
-        </p>
+    const [messages, setMessages] = useState([]);
+    const [inputMessage, setInputMessage] = useState('');
+    const [roomId, setRoomId] = useState('1');
+    const [senderName, setSenderName] = useState('');
+    const [isConnected, setIsConnected] = useState(false);
+    const eventSourceRef = useRef(null);
+
+    useEffect(() => {
+        return () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+            }
+        };
+    }, []);
+
+    const connectToRoom = () => {
+        if (eventSourceRef.current) eventSourceRef.current.close();
+
+        eventSourceRef.current = new EventSource(`http://192.168.0.193:8080/chat/room/${roomId}`);
+
+        eventSourceRef.current.onmessage = (event) => {
+            const newMessage = JSON.parse(event.data);
+            setMessages((prevMessages) => [...prevMessages, newMessage]);
+        };
+
+        eventSourceRef.current.onerror = (error) => {
+            console.error('방 접속 실패:', error);
+            setIsConnected(false);
+        };
+
+        eventSourceRef.current.onopen = () => {
+            setIsConnected(true);
+        };
+    };
+
+    const sendMessage = async () => {
+        if (inputMessage.trim() === '') return;
+
+        try {
+            const response = await axios.post(`http://192.168.0.193:8080/chat/send/msg/room/${roomId}`, {
+                chatMsg: inputMessage,
+                senderName: senderName
+            });
+            setInputMessage('');
+        } catch (error) {
+            console.error('메세지 전송 실패:', error);
+        }
+    };
+
+    return (
         <div>
-          <a
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className={styles.vercelLogo}
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+            {!isConnected ? (
+                <div>
+                    <input
+                        type="text"
+                        value={roomId}
+                        onChange={(e) => setRoomId(e.target.value)}
+                        placeholder="방 ID 입력"
+                    />
+                    <input
+                        type="text"
+                        value={senderName}
+                        onChange={(e) => setSenderName(e.target.value)}
+                        placeholder="이름 입력"
+                    />
+                    <button onClick={connectToRoom}>채팅방 입장</button>
+                </div>
+            ) : (
+                <div>
+                    <div>
+                        {messages.map((msg, index) => (
+                            <div key={index}>
+                                <strong>{msg.senderName}:</strong> {msg.chatMsg}
+                            </div>
+                        ))}
+                    </div>
+                    <input
+                        type="text"
+                        value={inputMessage}
+                        onChange={(e) => setInputMessage(e.target.value)}
+                    />
+                    <button onClick={sendMessage}>전송</button>
+                </div>
+            )}
         </div>
-      </div>
-
-      <div className={styles.center}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className={styles.grid}>
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Docs <span>-&gt;</span>
-          </h2>
-          <p>Find in-depth information about Next.js features and API.</p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Learn <span>-&gt;</span>
-          </h2>
-          <p>Learn about Next.js in an interactive course with&nbsp;quizzes!</p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Templates <span>-&gt;</span>
-          </h2>
-          <p>Explore starter templates for Next.js.</p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className={styles.card}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2>
-            Deploy <span>-&gt;</span>
-          </h2>
-          <p>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
-  );
+    );
 }
